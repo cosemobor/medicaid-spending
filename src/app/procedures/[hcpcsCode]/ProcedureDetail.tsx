@@ -36,7 +36,7 @@ export default function ProcedureDetail({
   const providerDotData: DotPlotDatum[] = topProviders.map((p) => ({
     x: p.costIndex ?? 0,
     y: p.totalPaid,
-    label: p.npi,
+    label: p.providerName ?? p.npi,
     id: p.npi,
     category: p.state ?? 'Unknown',
     costPerClaim: p.costPerClaim,
@@ -44,6 +44,8 @@ export default function ProcedureDetail({
     totalClaims: p.totalClaims,
     totalBeneficiaries: p.totalBeneficiaries,
     state: p.state,
+    providerName: p.providerName,
+    npi: p.npi,
   }));
 
   // State dot data
@@ -60,13 +62,16 @@ export default function ProcedureDetail({
   const providerColumns: ColumnDef<ProviderProcedure>[] = [
     {
       key: 'npi',
-      label: 'NPI',
+      label: 'Provider',
       render: (r) => (
-        <Link href={`/providers/${r.npi}`} className="font-mono text-xs text-blue-600 hover:underline">
-          {r.npi}
-        </Link>
+        <div>
+          <Link href={`/providers/${r.npi}`} className="font-mono text-xs text-blue-600 hover:underline">
+            {r.npi}
+          </Link>
+          {r.providerName && <p className="text-xs text-gray-500 truncate max-w-[180px]" title={r.providerName}>{r.providerName}</p>}
+        </div>
       ),
-      sortValue: (r) => r.npi,
+      sortValue: (r) => r.providerName ?? r.npi,
     },
     {
       key: 'state',
@@ -202,6 +207,9 @@ export default function ProcedureDetail({
       <h2 className="text-xl font-bold text-gray-900">
         <span className="font-mono">{proc.hcpcsCode}</span>
         <span className="ml-2 text-sm font-normal text-gray-500">{proc.category}</span>
+        {proc.description && (
+          <p className="mt-1 text-sm font-normal text-gray-600">{proc.description}</p>
+        )}
       </h2>
 
       {/* Stat Cards */}
@@ -280,7 +288,8 @@ export default function ProcedureDetail({
             }}
             renderTooltip={(d) => (
               <div className="max-w-xs rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-lg">
-                <p className="font-mono text-sm font-bold text-gray-900">{d.label}</p>
+                {d.providerName ? <p className="text-sm font-semibold text-gray-900">{String(d.providerName)}</p> : null}
+                <p className="font-mono text-xs text-gray-500">{d.npi as string ?? d.label}</p>
                 {'state' in d && d.state ? <p className="text-xs text-gray-500">{String(d.state)}</p> : null}
                 <div className="mt-1.5 space-y-0.5 text-xs text-gray-700">
                   <p>Total Paid: <span className="font-semibold">{formatCurrencyCompact(d.y)}</span></p>

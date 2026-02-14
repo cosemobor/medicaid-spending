@@ -57,8 +57,22 @@ async function main() {
   const client = createClient({ url, authToken });
   const db = drizzle(client, { schema });
 
-  // Create tables
-  console.log('\nCreating tables...');
+  // Drop and recreate tables for schema changes
+  console.log('\nDropping existing tables...');
+  await client.executeMultiple(`
+    DROP TABLE IF EXISTS monthly_national;
+    DROP TABLE IF EXISTS procedures;
+    DROP TABLE IF EXISTS providers;
+    DROP TABLE IF EXISTS states;
+    DROP TABLE IF EXISTS procedure_monthly;
+    DROP TABLE IF EXISTS provider_procedures;
+    DROP TABLE IF EXISTS state_monthly;
+    DROP TABLE IF EXISTS state_procedures;
+    DROP TABLE IF EXISTS provider_monthly;
+    DROP TABLE IF EXISTS outliers;
+  `);
+
+  console.log('Creating tables...');
   await client.executeMultiple(`
     CREATE TABLE IF NOT EXISTS monthly_national (
       month TEXT PRIMARY KEY,
@@ -74,6 +88,7 @@ async function main() {
     CREATE TABLE IF NOT EXISTS procedures (
       hcpcs_code TEXT PRIMARY KEY,
       category TEXT NOT NULL,
+      description TEXT,
       total_paid REAL NOT NULL,
       total_claims INTEGER NOT NULL,
       total_beneficiaries INTEGER NOT NULL,
@@ -86,6 +101,7 @@ async function main() {
 
     CREATE TABLE IF NOT EXISTS providers (
       npi TEXT PRIMARY KEY,
+      name TEXT,
       state TEXT,
       total_paid REAL NOT NULL,
       total_claims INTEGER NOT NULL,
@@ -135,7 +151,8 @@ async function main() {
       cost_per_beneficiary REAL,
       procedure_median_cost_per_claim REAL,
       cost_index REAL,
-      state TEXT
+      state TEXT,
+      provider_name TEXT
     );
 
     CREATE TABLE IF NOT EXISTS state_monthly (
@@ -181,7 +198,9 @@ async function main() {
       total_beneficiaries INTEGER NOT NULL,
       cost_per_claim REAL,
       procedure_median REAL,
-      cost_index REAL
+      cost_index REAL,
+      provider_name TEXT,
+      hcpcs_description TEXT
     );
 
     CREATE TABLE IF NOT EXISTS analytics_events (
@@ -194,33 +213,35 @@ async function main() {
     );
   `);
 
-  // Clear existing data
-  console.log('\nClearing existing data...');
-  await client.executeMultiple(`
-    DELETE FROM monthly_national;
-    DELETE FROM procedures;
-    DELETE FROM providers;
-    DELETE FROM states;
-    DELETE FROM procedure_monthly;
-    DELETE FROM provider_procedures;
-    DELETE FROM state_monthly;
-    DELETE FROM state_procedures;
-    DELETE FROM provider_monthly;
-    DELETE FROM outliers;
-  `);
-
-  // Load NPI state mapping
+  // Load NPI state and name mappings
   const npiStatesPath = path.join(DATA_DIR, 'npi-states.json');
   let npiStateMap: Record<string, string> = {};
+  let npiNameMap: Record<string, string> = {};
   if (existsSync(npiStatesPath)) {
     const npiStates = JSON.parse(readFileSync(npiStatesPath, 'utf-8'));
-    // npi-states.json is keyed by index, each value has { npi, state, ... }
     for (const entry of Object.values(npiStates) as any[]) {
       if (entry.npi && entry.state) {
         npiStateMap[entry.npi] = entry.state;
       }
+      if (entry.npi && entry.name) {
+        npiNameMap[entry.npi] = entry.name;
+      }
     }
     console.log(`  Loaded NPI state mappings: ${Object.keys(npiStateMap).length}`);
+    console.log(`  Loaded NPI name mappings: ${Object.keys(npiNameMap).length}`);
+  }
+
+  // Load HCPCS description mapping
+  const hcpcsDescPath = path.join(DATA_DIR, 'hcpcs-descriptions.json');
+  let hcpcsDescMap: Record<string, string> = {};
+  if (existsSync(hcpcsDescPath)) {
+    const descriptions = JSON.parse(readFileSync(hcpcsDescPath, 'utf-8'));
+    for (const entry of descriptions as any[]) {
+      if (entry.code && (entry.shortDesc || entry.longDesc)) {
+        hcpcsDescMap[entry.code] = entry.shortDesc || entry.longDesc;
+      }
+    }
+    console.log(`  Loaded HCPCS descriptions: ${Object.keys(hcpcsDescMap).length}`);
   }
 
   // Load and insert data
@@ -310,6 +331,7 @@ async function main() {
     await insertBatch(db, schema.procedures, procedureSummary.map((r: any) => ({
       hcpcsCode: r.hcpcsCode,
       category: r.category,
+      description: hcpcsDescMap[r.hcpcsCode] ?? null,
       totalPaid: r.totalPaid,
       totalClaims: r.totalClaims,
       totalBeneficiaries: r.totalBeneficiaries,
@@ -325,6 +347,7 @@ async function main() {
     console.log('  Providers...');
     await insertBatch(db, schema.providers, providerSummary.map((r: any) => ({
       npi: r.npi,
+      name: npiNameMap[r.npi] ?? null,
       state: r.state,
       totalPaid: r.totalPaid,
       totalClaims: r.totalClaims,
@@ -382,6 +405,7 @@ async function main() {
       procedureMedianCostPerClaim: r.procedureMedianCostPerClaim,
       costIndex: r.costIndex,
       state: r.state,
+      providerName: npiNameMap[r.npi] ?? null,
     })));
   }
 
@@ -410,6 +434,8 @@ async function main() {
       costPerClaim: r.costPerClaim,
       procedureMedian: r.procedureMedian,
       costIndex: r.costIndex,
+      providerName: npiNameMap[r.npi] ?? null,
+      hcpcsDescription: hcpcsDescMap[r.hcpcsCode] ?? null,
     })));
   }
 

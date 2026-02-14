@@ -47,8 +47,10 @@ export default function StateDetail({
   const provDotData: DotPlotDatum[] = providers.map((p) => ({
     x: p.avgCostPerClaim ?? 0,
     y: p.totalPaid,
-    label: p.npi,
+    label: p.name ?? p.npi,
     id: p.npi,
+    providerName: p.name,
+    npi: p.npi,
     totalClaims: p.totalClaims,
     totalBeneficiaries: p.totalBeneficiaries,
     procedureCount: p.procedureCount,
@@ -112,13 +114,16 @@ export default function StateDetail({
   const provColumns: ColumnDef<ProviderSummary>[] = [
     {
       key: 'npi',
-      label: 'NPI',
+      label: 'Provider',
       render: (r) => (
-        <Link href={`/providers/${r.npi}`} className="font-mono text-xs text-blue-600 hover:underline">
-          {r.npi}
-        </Link>
+        <div>
+          <Link href={`/providers/${r.npi}`} className="font-mono text-xs text-blue-600 hover:underline">
+            {r.npi}
+          </Link>
+          {r.name && <p className="text-xs text-gray-500 truncate max-w-[180px]" title={r.name}>{r.name}</p>}
+        </div>
       ),
-      sortValue: (r) => r.npi,
+      sortValue: (r) => r.name ?? r.npi,
     },
     {
       key: 'totalPaid',
@@ -287,7 +292,8 @@ export default function StateDetail({
             onDotClick={(d) => setSelectedProvId(d.id === selectedProvId || !d.id ? null : d.id)}
             renderTooltip={(d) => (
               <div className="max-w-xs rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-lg">
-                <p className="font-mono text-sm font-bold text-gray-900">{d.label}</p>
+                {d.providerName ? <p className="text-sm font-semibold text-gray-900">{String(d.providerName)}</p> : null}
+                <p className="font-mono text-xs text-gray-500">{d.npi as string}</p>
                 <div className="mt-1.5 space-y-0.5 text-xs text-gray-700">
                   <p>Total Paid: <span className="font-semibold">{formatCurrencyCompact(d.y)}</span></p>
                   <p>$/Claim: <span className="font-semibold">{formatCurrency(d.x)}</span></p>

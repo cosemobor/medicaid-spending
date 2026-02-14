@@ -126,7 +126,8 @@ export default function ProviderDetail({
       </div>
 
       <h2 className="text-xl font-bold text-gray-900">
-        <span className="font-mono">{prov.npi}</span>
+        {prov.name && <span>{prov.name}</span>}
+        <span className={`font-mono ${prov.name ? 'ml-2 text-sm font-normal text-gray-500' : ''}`}>{prov.npi}</span>
         {prov.state && (
           <Link
             href={`/states/${prov.state}`}

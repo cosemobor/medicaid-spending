@@ -36,7 +36,9 @@ export default function AnomalyExplorer({
     return outliers.filter((o) => {
       if (search) {
         const q = search.toLowerCase();
-        if (!o.npi.includes(q) && !o.hcpcsCode.toLowerCase().includes(q)) return false;
+        if (!o.npi.includes(q) && !o.hcpcsCode.toLowerCase().includes(q)
+            && !(o.providerName?.toLowerCase().includes(q))
+            && !(o.hcpcsDescription?.toLowerCase().includes(q))) return false;
       }
       if (filter === 'high' && (o.costIndex ?? 0) <= 2.0) return false;
       if (filter === 'low' && (o.costIndex ?? 0) >= 0.5) return false;
@@ -48,11 +50,13 @@ export default function AnomalyExplorer({
     return filtered.map((o) => ({
       x: o.costIndex ?? 0,
       y: o.totalPaid,
-      label: `${o.npi} / ${o.hcpcsCode}`,
+      label: o.providerName ?? o.npi,
       id: `${o.npi}|${o.hcpcsCode}`,
       category: (o.costIndex ?? 0) > 2.0 ? 'Above 2x Median' : 'Below 0.5x Median',
       npi: o.npi,
+      providerName: o.providerName,
       hcpcsCode: o.hcpcsCode,
+      hcpcsDescription: o.hcpcsDescription,
       state: o.state,
       costPerClaim: o.costPerClaim,
       procedureMedian: o.procedureMedian,
@@ -69,13 +73,16 @@ export default function AnomalyExplorer({
   const columns: ColumnDef<Outlier>[] = [
     {
       key: 'npi',
-      label: 'NPI',
+      label: 'Provider',
       render: (r) => (
-        <Link href={`/providers/${r.npi}`} className="font-mono text-xs text-blue-600 hover:underline">
-          {r.npi}
-        </Link>
+        <div>
+          <Link href={`/providers/${r.npi}`} className="font-mono text-xs text-blue-600 hover:underline">
+            {r.npi}
+          </Link>
+          {r.providerName && <p className="text-xs text-gray-500 truncate max-w-[150px]" title={r.providerName}>{r.providerName}</p>}
+        </div>
       ),
-      sortValue: (r) => r.npi,
+      sortValue: (r) => r.providerName ?? r.npi,
     },
     {
       key: 'state',
@@ -93,9 +100,12 @@ export default function AnomalyExplorer({
       key: 'hcpcsCode',
       label: 'Procedure',
       render: (r) => (
-        <Link href={`/procedures/${r.hcpcsCode}`} className="font-mono text-xs text-blue-600 hover:underline">
-          {r.hcpcsCode}
-        </Link>
+        <div>
+          <Link href={`/procedures/${r.hcpcsCode}`} className="font-mono text-xs text-blue-600 hover:underline">
+            {r.hcpcsCode}
+          </Link>
+          {r.hcpcsDescription && <p className="text-xs text-gray-500 truncate max-w-[150px]" title={r.hcpcsDescription}>{r.hcpcsDescription}</p>}
+        </div>
       ),
       sortValue: (r) => r.hcpcsCode,
     },
@@ -193,7 +203,7 @@ export default function AnomalyExplorer({
         <SearchInput
           value={search}
           onChange={setSearch}
-          placeholder="Search NPI or HCPCS..."
+          placeholder="Search provider or procedure..."
         />
         <div className="flex gap-1.5">
           {([
@@ -231,8 +241,10 @@ export default function AnomalyExplorer({
           onDotClick={(d) => setSelectedId(d.id === selectedId || !d.id ? null : d.id)}
           renderTooltip={(d) => (
             <div className="max-w-xs rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-lg">
-              <p className="font-mono text-sm font-bold text-gray-900">{d.npi as string}</p>
-              <p className="font-mono text-xs text-gray-500">{d.hcpcsCode as string}</p>
+              {d.providerName ? <p className="text-sm font-semibold text-gray-900">{String(d.providerName)}</p> : null}
+              <p className="font-mono text-xs text-gray-500">{String(d.npi)}</p>
+              {d.hcpcsDescription ? <p className="text-xs text-gray-600">{String(d.hcpcsDescription)}</p> : null}
+              <p className="font-mono text-xs text-gray-500">{String(d.hcpcsCode)}</p>
               {'state' in d && d.state ? <p className="text-xs text-gray-500">{String(d.state)}</p> : null}
               <div className="mt-1.5 space-y-0.5 text-xs text-gray-700">
                 <p>$/Claim: <span className="font-semibold">{formatCurrency(d.costPerClaim as number)}</span> vs <span className="font-semibold">{formatCurrency(d.procedureMedian as number)}</span> median</p>

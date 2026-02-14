@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
 
   const conditions: ReturnType<typeof sql>[] = [];
   if (search) {
-    conditions.push(sql`${procedures.hcpcsCode} LIKE ${'%' + search + '%'}`);
+    conditions.push(sql`(${procedures.hcpcsCode} LIKE ${'%' + search + '%'} OR ${procedures.description} LIKE ${'%' + search + '%'})`);
   }
   if (category) {
     conditions.push(sql`${procedures.category} = ${category}`);

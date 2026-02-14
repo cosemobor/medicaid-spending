@@ -28,15 +28,18 @@ export default function ProviderExplorer({ providers, totalCount }: Props) {
 
   const filtered = useMemo(() => {
     if (!search) return providers;
-    return providers.filter((p) => p.npi.includes(search));
+    const q = search.toLowerCase();
+    return providers.filter((p) => p.npi.includes(q) || (p.name?.toLowerCase().includes(q) ?? false));
   }, [providers, search]);
 
   const dotData: DotPlotDatum[] = useMemo(() => {
     return filtered.map((p) => ({
       x: p.avgCostPerClaim ?? 0,
       y: p.totalPaid,
-      label: p.npi,
+      label: p.name ?? p.npi,
       id: p.npi,
+      providerName: p.name,
+      npi: p.npi,
       category:
         (p.spendingGrowthPct ?? 0) > 20
           ? 'High Growth (>20%)'
@@ -65,11 +68,14 @@ export default function ProviderExplorer({ providers, totalCount }: Props) {
   const columns: ColumnDef<ProviderSummary>[] = [
     {
       key: 'npi',
-      label: 'NPI',
+      label: 'Provider',
       render: (r) => (
-        <span className="font-mono text-xs font-semibold text-blue-600">{r.npi}</span>
+        <div>
+          <span className="font-mono text-xs font-semibold text-blue-600">{r.npi}</span>
+          {r.name && <p className="text-xs text-gray-500 truncate max-w-[200px]" title={r.name}>{r.name}</p>}
+        </div>
       ),
-      sortValue: (r) => r.npi,
+      sortValue: (r) => r.name ?? r.npi,
     },
     {
       key: 'state',
@@ -161,7 +167,7 @@ export default function ProviderExplorer({ providers, totalCount }: Props) {
         />
         <StatCard
           label="Top Provider"
-          value={providers[0]?.npi ?? '--'}
+          value={providers[0]?.name ?? providers[0]?.npi ?? '--'}
           detail={
             providers[0]
               ? `${formatCurrencyCompact(providers[0].totalPaid)} total`
@@ -183,7 +189,7 @@ export default function ProviderExplorer({ providers, totalCount }: Props) {
         <SearchInput
           value={search}
           onChange={setSearch}
-          placeholder="Search NPI..."
+          placeholder="Search NPI or name..."
         />
       </div>
 
@@ -208,7 +214,8 @@ export default function ProviderExplorer({ providers, totalCount }: Props) {
           }}
           renderTooltip={(d) => (
             <div className="max-w-xs rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-lg">
-              <p className="font-mono text-sm font-bold text-gray-900">{d.label}</p>
+              {d.providerName ? <p className="text-sm font-semibold text-gray-900">{String(d.providerName)}</p> : null}
+              <p className="font-mono text-xs text-gray-500">{d.npi as string}</p>
               {'state' in d && d.state ? <p className="text-xs text-gray-500">{String(d.state)}</p> : null}
               <div className="mt-1.5 space-y-0.5 text-xs text-gray-700">
                 <p>Total Paid: <span className="font-semibold">{formatCurrencyCompact(d.y)}</span></p>

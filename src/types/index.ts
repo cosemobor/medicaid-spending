@@ -16,6 +16,7 @@ export interface MonthlyNational {
 export interface ProcedureSummary {
   hcpcsCode: string;
   category: string;
+  description?: string | null;
   totalPaid: number;
   totalClaims: number;
   totalBeneficiaries: number;
@@ -28,6 +29,7 @@ export interface ProcedureSummary {
 
 export interface ProviderSummary {
   npi: string;
+  name?: string | null;
   state: string | null;
   totalPaid: number;
   totalClaims: number;
@@ -76,6 +78,7 @@ export interface ProviderProcedure {
   procedureMedianCostPerClaim: number | null;
   costIndex: number | null;
   state: string | null;
+  providerName?: string | null;
 }
 
 export interface ProviderMonthly {
@@ -118,4 +121,6 @@ export interface Outlier {
   costPerClaim: number | null;
   procedureMedian: number | null;
   costIndex: number | null;
+  providerName?: string | null;
+  hcpcsDescription?: string | null;
 }

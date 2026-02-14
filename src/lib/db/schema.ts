@@ -3,6 +3,7 @@ import { sqliteTable, text, integer, real, index } from 'drizzle-orm/sqlite-core
 export const procedures = sqliteTable('procedures', {
   hcpcsCode: text('hcpcs_code').primaryKey(),
   category: text('category').notNull(),
+  description: text('description'),
   totalPaid: real('total_paid').notNull(),
   totalClaims: integer('total_claims').notNull(),
   totalBeneficiaries: integer('total_beneficiaries').notNull(),
@@ -18,6 +19,7 @@ export const procedures = sqliteTable('procedures', {
 
 export const providers = sqliteTable('providers', {
   npi: text('npi').primaryKey(),
+  name: text('name'),
   state: text('state'),
   totalPaid: real('total_paid').notNull(),
   totalClaims: integer('total_claims').notNull(),
@@ -85,6 +87,7 @@ export const providerProcedures = sqliteTable('provider_procedures', {
   procedureMedianCostPerClaim: real('procedure_median_cost_per_claim'),
   costIndex: real('cost_index'),
   state: text('state'),
+  providerName: text('provider_name'),
 }, (table) => [
   index('idx_pp_code').on(table.hcpcsCode),
   index('idx_pp_npi').on(table.npi),
@@ -140,6 +143,8 @@ export const outliers = sqliteTable('outliers', {
   costPerClaim: real('cost_per_claim'),
   procedureMedian: real('procedure_median'),
   costIndex: real('cost_index'),
+  providerName: text('provider_name'),
+  hcpcsDescription: text('hcpcs_description'),
 }, (table) => [
   index('idx_outliers_code').on(table.hcpcsCode),
   index('idx_outliers_npi').on(table.npi),

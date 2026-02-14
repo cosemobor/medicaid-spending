@@ -43,7 +43,10 @@ export default function ProcedureExplorer({
 
   const filtered = useMemo(() => {
     return procedures.filter((p) => {
-      if (search && !p.hcpcsCode.toLowerCase().includes(search.toLowerCase())) return false;
+      if (search) {
+        const q = search.toLowerCase();
+        if (!p.hcpcsCode.toLowerCase().includes(q) && !(p.description?.toLowerCase().includes(q))) return false;
+      }
       if (selectedCategory && p.category !== selectedCategory) return false;
       if (p.totalPaid < minSpending) return false;
       return true;
@@ -57,6 +60,7 @@ export default function ProcedureExplorer({
       label: p.hcpcsCode,
       category: p.category,
       id: p.hcpcsCode,
+      description: p.description,
       size: p.totalPaid,
       totalPaid: p.totalPaid,
       avgCostPerClaim: p.avgCostPerClaim,
@@ -72,7 +76,10 @@ export default function ProcedureExplorer({
       key: 'hcpcsCode',
       label: 'HCPCS Code',
       render: (r) => (
-        <span className="font-mono text-xs font-semibold text-blue-600">{r.hcpcsCode}</span>
+        <div>
+          <span className="font-mono text-xs font-semibold text-blue-600">{r.hcpcsCode}</span>
+          {r.description && <p className="text-xs text-gray-500 truncate max-w-[200px]" title={r.description}>{r.description}</p>}
+        </div>
       ),
       sortValue: (r) => r.hcpcsCode,
     },
@@ -159,7 +166,7 @@ export default function ProcedureExplorer({
           value={highestSpending ? highestSpending.hcpcsCode : '--'}
           detail={
             highestSpending
-              ? `${formatCurrencyCompact(highestSpending.totalPaid)} total`
+              ? `${highestSpending.description ?? ''} ${formatCurrencyCompact(highestSpending.totalPaid)}`.trim()
               : undefined
           }
         />
@@ -179,7 +186,7 @@ export default function ProcedureExplorer({
         <SearchInput
           value={search}
           onChange={setSearch}
-          placeholder="Search HCPCS code..."
+          placeholder="Search code or description..."
         />
         <div className="flex flex-wrap gap-1.5">
           <button
@@ -250,6 +257,7 @@ export default function ProcedureExplorer({
           renderTooltip={(d) => (
             <div className="max-w-xs rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-lg">
               <p className="font-mono text-sm font-bold text-gray-900">{d.label}</p>
+              {d.description ? <p className="text-xs text-gray-600">{String(d.description)}</p> : null}
               <p className="text-xs text-gray-500">{d.category}</p>
               <div className="mt-1.5 space-y-0.5 text-xs text-gray-700">
                 <p>Total Paid: <span className="font-semibold">{formatCurrencyCompact(d.totalPaid as number)}</span></p>
