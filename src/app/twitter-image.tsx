@@ -141,12 +141,29 @@ export default function TwitterImage() {
           <div
             style={{
               display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
               marginTop: '36px',
-              fontSize: '14px',
-              color: '#94a3b8',
             }}
           >
-            Jan 2018 – Dec 2024
+            <span
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: '#2563eb',
+                color: 'white',
+                fontSize: '16px',
+                fontWeight: 600,
+                padding: '10px 24px',
+                borderRadius: '8px',
+              }}
+            >
+              Explore the Data
+            </span>
+            <span style={{ fontSize: '14px', color: '#94a3b8' }}>
+              Jan 2018 – Dec 2024
+            </span>
           </div>
         </div>
       </div>
