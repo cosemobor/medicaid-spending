@@ -32,6 +32,8 @@ export const providers = sqliteTable('providers', {
   spendingGrowthPct: real('spending_growth_pct'),
   costPerClaimGrowthPct: real('cost_per_claim_growth_pct'),
   volumeGrowthPct: real('volume_growth_pct'),
+  lat: real('lat'),
+  lng: real('lng'),
 }, (table) => [
   index('idx_providers_state').on(table.state),
   index('idx_providers_paid').on(table.totalPaid),

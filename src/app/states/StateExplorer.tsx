@@ -14,6 +14,8 @@ import {
   formatNumberCompact,
   formatRate,
 } from '@/lib/formatters';
+import DataQualityBanner from '@/components/DataQualityBanner';
+import { stateName } from '@/lib/us-states';
 import type { StateSummary, StateMonthly } from '@/types';
 
 const STATE_COLORS = ['#2563eb', '#dc2626', '#059669', '#d97706', '#7c3aed'];
@@ -45,7 +47,7 @@ export default function StateExplorer({
     return states.map((s) => ({
       x: s.avgCostPerBeneficiary ?? 0,
       y: s.totalPaid,
-      label: s.state,
+      label: stateName(s.state),
       id: s.state,
       avgCostPerClaim: s.avgCostPerClaim,
       totalClaims: s.totalClaims,
@@ -75,13 +77,13 @@ export default function StateExplorer({
   const spendingLines = top5States.map((s, i) => ({
     dataKey: `paid_${s}`,
     color: STATE_COLORS[i % STATE_COLORS.length],
-    label: s,
+    label: stateName(s),
   }));
 
   const cpbLines = top5States.map((s, i) => ({
     dataKey: `cpb_${s}`,
     color: STATE_COLORS[i % STATE_COLORS.length],
-    label: s,
+    label: stateName(s),
   }));
 
   const columns: ColumnDef<StateSummary>[] = [
@@ -89,9 +91,9 @@ export default function StateExplorer({
       key: 'state',
       label: 'State',
       render: (r) => (
-        <span className="text-xs font-semibold text-blue-600">{r.state}</span>
+        <span className="text-xs font-semibold text-blue-600">{stateName(r.state)}</span>
       ),
-      sortValue: (r) => r.state,
+      sortValue: (r) => stateName(r.state),
     },
     {
       key: 'totalPaid',
@@ -152,11 +154,13 @@ export default function StateExplorer({
           Medicaid Provider Spending Explorer
         </h1>
         <p className="mt-1 text-sm text-gray-500">
-          T-MSIS provider-level spending data, Jan 2018 – Dec 2024
+          State totals based on NPPES-registered provider locations, Jan 2018 – Dec 2024
         </p>
       </header>
 
       <PageNav activeTab="states" />
+
+      <DataQualityBanner />
 
       {/* Stat Cards */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -166,7 +170,7 @@ export default function StateExplorer({
         />
         <StatCard
           label="Highest Spending"
-          value={highestSpending?.state ?? '--'}
+          value={stateName(highestSpending?.state)}
           detail={
             highestSpending
               ? `${formatCurrencyCompact(highestSpending.totalPaid)} total`
@@ -175,7 +179,7 @@ export default function StateExplorer({
         />
         <StatCard
           label="Highest $/Beneficiary"
-          value={highestCpb?.state ?? '--'}
+          value={stateName(highestCpb?.state)}
           detail={
             highestCpb
               ? `${formatCurrency(highestCpb.avgCostPerBeneficiary ?? 0)} per beneficiary`

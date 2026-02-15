@@ -113,7 +113,9 @@ async function main() {
       top_procedure_paid REAL,
       spending_growth_pct REAL,
       cost_per_claim_growth_pct REAL,
-      volume_growth_pct REAL
+      volume_growth_pct REAL,
+      lat REAL,
+      lng REAL
     );
 
     CREATE TABLE IF NOT EXISTS states (
@@ -213,22 +215,35 @@ async function main() {
     );
   `);
 
-  // Load NPI state and name mappings
-  const npiStatesPath = path.join(DATA_DIR, 'npi-states.json');
+  // Load NPI state, name, and lat/lng mappings (prefer full NPPES extract, fallback to API lookups)
   let npiStateMap: Record<string, string> = {};
   let npiNameMap: Record<string, string> = {};
+  let npiLatMap: Record<string, number> = {};
+  let npiLngMap: Record<string, number> = {};
+  const npiFullPath = path.join(DATA_DIR, 'npi-lookup-full.json');
+  const npiStatesPath = path.join(DATA_DIR, 'npi-states.json');
+  if (existsSync(npiFullPath)) {
+    const fullData: Record<string, { state: string; name: string; lat?: number | null; lng?: number | null }> = JSON.parse(readFileSync(npiFullPath, 'utf-8'));
+    for (const [npi, info] of Object.entries(fullData)) {
+      if (info.state) npiStateMap[npi] = info.state;
+      if (info.name) npiNameMap[npi] = info.name;
+      if (info.lat != null) npiLatMap[npi] = info.lat;
+      if (info.lng != null) npiLngMap[npi] = info.lng;
+    }
+    console.log(`  Loaded full NPI mappings: ${Object.keys(npiStateMap).length} states, ${Object.keys(npiNameMap).length} names, ${Object.keys(npiLatMap).length} with lat/lng`);
+  }
   if (existsSync(npiStatesPath)) {
     const npiStates = JSON.parse(readFileSync(npiStatesPath, 'utf-8'));
-    for (const entry of Object.values(npiStates) as any[]) {
-      if (entry.npi && entry.state) {
+    // API lookups can supplement/override full NPPES data for top providers
+    for (const entry of (Array.isArray(npiStates) ? npiStates : Object.values(npiStates)) as any[]) {
+      if (entry.npi && entry.state && !npiStateMap[entry.npi]) {
         npiStateMap[entry.npi] = entry.state;
       }
-      if (entry.npi && entry.name) {
+      if (entry.npi && entry.name && !npiNameMap[entry.npi]) {
         npiNameMap[entry.npi] = entry.name;
       }
     }
-    console.log(`  Loaded NPI state mappings: ${Object.keys(npiStateMap).length}`);
-    console.log(`  Loaded NPI name mappings: ${Object.keys(npiNameMap).length}`);
+    console.log(`  After API merge: ${Object.keys(npiStateMap).length} states, ${Object.keys(npiNameMap).length} names`);
   }
 
   // Load HCPCS description mapping
@@ -242,6 +257,20 @@ async function main() {
       }
     }
     console.log(`  Loaded HCPCS descriptions: ${Object.keys(hcpcsDescMap).length}`);
+  }
+
+  // Merge manual CPT descriptions (fills in numeric CPT codes not in NLM API)
+  const cptManualPath = path.join(DATA_DIR, 'cpt-descriptions-manual.json');
+  if (existsSync(cptManualPath)) {
+    const manual = JSON.parse(readFileSync(cptManualPath, 'utf-8'));
+    let added = 0;
+    for (const entry of manual as any[]) {
+      if (entry.code && entry.shortDesc && !hcpcsDescMap[entry.code]) {
+        hcpcsDescMap[entry.code] = entry.shortDesc;
+        added++;
+      }
+    }
+    console.log(`  Added ${added} manual CPT descriptions (total: ${Object.keys(hcpcsDescMap).length})`);
   }
 
   // Load and insert data
@@ -301,6 +330,8 @@ async function main() {
     }
   }
 
+  const stateMonthlyData = loadJson<any>('state-monthly.json');
+  const stateProcData = loadJson<any>('state-procedures.json');
   const providerMonthly = loadJson<any>('provider-monthly.json');
   const outlierData = loadJson<any>('outliers.json');
   // Merge NPI states into outliers
@@ -360,6 +391,8 @@ async function main() {
       spendingGrowthPct: r.spendingGrowthPct,
       costPerClaimGrowthPct: r.costPerClaimGrowthPct,
       volumeGrowthPct: r.volumeGrowthPct,
+      lat: npiLatMap[r.npi] ?? null,
+      lng: npiLngMap[r.npi] ?? null,
     })));
   }
 
@@ -375,6 +408,32 @@ async function main() {
       avgCostPerClaim: r.avgCostPerClaim,
       avgCostPerBeneficiary: r.avgCostPerBeneficiary,
       claimsPerBeneficiary: r.claimsPerBeneficiary,
+    })));
+  }
+
+  if (stateMonthlyData.length > 0) {
+    console.log('  State monthly...');
+    await insertBatch(db, schema.stateMonthly, stateMonthlyData.map((r: any) => ({
+      state: r.state,
+      month: r.month,
+      totalPaid: r.totalPaid,
+      totalClaims: r.totalClaims,
+      totalBeneficiaries: r.totalBeneficiaries,
+      avgCostPerClaim: r.avgCostPerClaim,
+      avgCostPerBeneficiary: r.avgCostPerBeneficiary,
+    })));
+  }
+
+  if (stateProcData.length > 0) {
+    console.log('  State procedures...');
+    await insertBatch(db, schema.stateProcedures, stateProcData.map((r: any) => ({
+      state: r.state,
+      hcpcsCode: r.hcpcsCode,
+      totalPaid: r.totalPaid,
+      totalClaims: r.totalClaims,
+      totalBeneficiaries: r.totalBeneficiaries,
+      avgCostPerClaim: r.avgCostPerClaim,
+      providerCount: r.providerCount,
     })));
   }
 
@@ -463,6 +522,8 @@ async function main() {
   console.log(`Procedures: ${procedureSummary.length}`);
   console.log(`Providers: ${providerSummary.length}`);
   console.log(`States: ${stateSummary.length}`);
+  console.log(`State monthly: ${stateMonthlyData.length}`);
+  console.log(`State procedures: ${stateProcData.length}`);
   console.log(`Procedure monthly: ${procedureMonthly.length}`);
   console.log(`Provider procedures: ${providerProcedures.length}`);
   console.log(`Provider monthly: ${providerMonthly.length}`);

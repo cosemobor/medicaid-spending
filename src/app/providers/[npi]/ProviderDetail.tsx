@@ -15,6 +15,8 @@ import {
   formatPercent,
   formatIndex,
 } from '@/lib/formatters';
+import DataQualityBanner from '@/components/DataQualityBanner';
+import InfoTip from '@/components/InfoTip';
 import type { ProviderSummary, ProviderMonthly, ProviderProcedure } from '@/types';
 
 interface Props {
@@ -78,7 +80,7 @@ export default function ProviderDetail({
     },
     {
       key: 'costIndex',
-      label: 'Cost Index',
+      label: <><span>Cost Index</span><InfoTip text="Provider's cost per claim divided by the procedure median. 1.0x = at median, 2.0x = twice the median." /></>,
       render: (r) => {
         const ci = r.costIndex ?? 0;
         const color = ci > 2 ? 'text-red-600' : ci < 0.5 ? 'text-blue-600' : 'text-gray-900';
@@ -119,6 +121,8 @@ export default function ProviderDetail({
 
       <PageNav activeTab="providers" />
 
+      <DataQualityBanner />
+
       <div className="mb-4">
         <Link href="/providers" className="text-xs text-blue-600 hover:underline">
           &larr; All Providers
@@ -134,6 +138,18 @@ export default function ProviderDetail({
             className="ml-2 text-sm font-normal text-blue-600 hover:underline"
           >
             {prov.state}
+          </Link>
+        )}
+        {prov.lat != null && prov.lng != null && (
+          <Link
+            href={`/providers?provider=${prov.npi}`}
+            className="ml-2 inline-flex items-center gap-1 text-sm font-normal text-gray-500 hover:text-blue-600"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+              <circle cx="12" cy="10" r="3" />
+            </svg>
+            View on Map
           </Link>
         )}
       </h2>
@@ -156,7 +172,7 @@ export default function ProviderDetail({
           detail={`${formatCurrency(prov.avgCostPerBeneficiary ?? 0)} per beneficiary`}
         />
         <StatCard
-          label="Spending Growth"
+          label={<><span>Spending Growth</span><InfoTip text="Spending change comparing pre-Jul 2021 to post-Jul 2021 periods. Positive = spending increased." /></>}
           value={
             prov.spendingGrowthPct != null
               ? formatPercent(prov.spendingGrowthPct)

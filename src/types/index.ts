@@ -42,6 +42,9 @@ export interface ProviderSummary {
   spendingGrowthPct: number | null;
   costPerClaimGrowthPct: number | null;
   volumeGrowthPct: number | null;
+  avgCostIndex?: number | null;
+  lat: number | null;
+  lng: number | null;
 }
 
 export interface StateSummary {

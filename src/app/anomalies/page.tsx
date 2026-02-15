@@ -3,7 +3,7 @@ import { outliers } from '@/lib/db/schema';
 import { desc, sql } from 'drizzle-orm';
 import AnomalyExplorer from './AnomalyExplorer';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 3600;
 
 export default async function AnomaliesPage() {
   const db = getDb();

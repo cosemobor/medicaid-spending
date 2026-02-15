@@ -3,8 +3,9 @@ import { states, stateMonthly, stateProcedures, providers } from '@/lib/db/schem
 import { eq, desc } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import StateDetail from './StateDetail';
+import { VALID_STATE_SET } from '@/lib/us-states';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 3600;
 
 interface Props {
   params: Promise<{ state: string }>;
@@ -13,6 +14,9 @@ interface Props {
 export default async function StateDetailPage({ params }: Props) {
   const { state } = await params;
   const decoded = decodeURIComponent(state);
+
+  if (!VALID_STATE_SET.has(decoded)) notFound();
+
   const db = getDb();
 
   const [stateData] = await db

@@ -14,6 +14,8 @@ import {
   formatNumberCompact,
   formatPercent,
 } from '@/lib/formatters';
+import DataQualityBanner from '@/components/DataQualityBanner';
+import { stateName } from '@/lib/us-states';
 import type { StateSummary, StateMonthly, StateProcedure, ProviderSummary } from '@/types';
 
 interface Props {
@@ -185,13 +187,15 @@ export default function StateDetail({
 
       <PageNav activeTab="states" />
 
+      <DataQualityBanner />
+
       <div className="mb-4">
         <Link href="/states" className="text-xs text-blue-600 hover:underline">
           &larr; All States
         </Link>
       </div>
 
-      <h2 className="text-xl font-bold text-gray-900">{st.state}</h2>
+      <h2 className="text-xl font-bold text-gray-900">{stateName(st.state)}</h2>
 
       {/* Stat Cards */}
       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -224,14 +228,14 @@ export default function StateDetail({
             data={monthly}
             lines={[{ dataKey: 'totalPaid', color: '#2563eb', label: 'Total Paid' }]}
             title="Monthly Spending"
-            subtitle={`${st.state} — total payments per month (nominal $)`}
+            subtitle={`${stateName(st.state)} — total payments per month (nominal $)`}
             yFormatter={(v) => formatCurrencyCompact(v)}
           />
           <TrendChart
             data={monthly}
             lines={[{ dataKey: 'avgCostPerBeneficiary', color: '#059669', label: '$/Beneficiary' }]}
             title="Cost per Beneficiary"
-            subtitle={`${st.state} — average spending per beneficiary per month`}
+            subtitle={`${stateName(st.state)} — average spending per beneficiary per month`}
             yFormatter={(v) => formatCurrencyCompact(v)}
           />
         </div>

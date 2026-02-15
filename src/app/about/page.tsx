@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import PageNav from '@/components/PageNav';
 
 export default function AboutPage() {
@@ -87,20 +88,57 @@ export default function AboutPage() {
 
         <h4 className="mt-4 text-sm font-bold text-gray-800">State Assignment</h4>
         <p>
-          The raw dataset does not include provider location. We use the{' '}
-          <strong>NPPES (NPI Registry)</strong> API to look up each provider&apos;s
-          state based on their NPI number. Coverage is limited to the top
-          providers by spending volume.
+          The raw dataset does not include provider location. We cross-reference
+          each billing NPI against the{' '}
+          <strong>NPPES (National Plan &amp; Provider Enumeration System)</strong>{' '}
+          full replacement file published by CMS. This gives us practice location
+          state and provider name for the majority of billing NPIs. State-level
+          spending totals are aggregated from all 227M rows where the billing NPI
+          has a known state.
+        </p>
+
+        <h4 className="mt-4 text-sm font-bold text-gray-800">Beneficiary Counts</h4>
+        <p>
+          Beneficiary counts in this dataset are summed across months. The same
+          individual receiving services in January and February is counted twice.
+          Per-beneficiary cost metrics should be interpreted as approximations —
+          they overestimate costs per unique patient.
+        </p>
+
+        <h4 className="mt-4 text-sm font-bold text-gray-800">Procedure Descriptions</h4>
+        <p>
+          HCPCS Level II code descriptions come from the{' '}
+          <strong>NLM Clinical Tables API</strong>. Numeric CPT code descriptions
+          are sourced from the AMA CPT reference. Dental D-codes use ADA CDT
+          nomenclature. Some state-specific codes (W, X prefixes) may not have
+          standardized descriptions.
+        </p>
+
+        <h4 className="mt-4 text-sm font-bold text-gray-800">Data Completeness (Nov–Dec 2024)</h4>
+        <p>
+          November and December 2024 show spending approximately 21% and 67%
+          below typical monthly levels, respectively. This is due to CMS
+          reporting lag — states submit T-MSIS data with a 3–6 month delay, so
+          the most recent months are incomplete.
         </p>
 
         <h3 className="mt-6 text-base font-bold text-gray-900">Caveats</h3>
         <ul className="list-disc pl-5 space-y-1">
-          <li>Cell suppression means totals are underestimates</li>
-          <li>NPI-to-state mapping may not reflect where services were rendered (only provider registration address)</li>
-          <li>Beneficiary counts may double-count across months and providers</li>
-          <li>The data covers Medicaid only — not Medicare, private insurance, or out-of-pocket spending</li>
-          <li>Procedure median is computed from a sample of up to 10,000 provider cost-per-claim values</li>
+          <li>Cell suppression (rows with &lt;11 beneficiaries/month excluded) means totals are underestimates</li>
+          <li>NPI-to-state mapping uses provider registration address, not where services were rendered</li>
+          <li>Beneficiary counts sum across months — same patient counted multiple times per year</li>
+          <li>The data covers Medicaid fee-for-service only — not managed care, Medicare, or private insurance</li>
+          <li>Procedure median cost is computed from a sample of up to 10,000 provider cost-per-claim values</li>
+          <li>Provider list shows top 10,000 by total spending (61.3% of all Medicaid spending)</li>
+          <li>State-level data covers providers with known NPPES state affiliations</li>
+          <li>November and December 2024 data is incomplete due to CMS reporting delays</li>
         </ul>
+      </div>
+
+      <div className="mt-12 flex gap-4 border-t border-gray-100 pt-6 text-xs text-gray-400">
+        <Link href="/" className="hover:text-gray-600">Explorer</Link>
+        <Link href="/terms" className="hover:text-gray-600">Terms of Use</Link>
+        <Link href="/privacy" className="hover:text-gray-600">Privacy Policy</Link>
       </div>
     </div>
   );

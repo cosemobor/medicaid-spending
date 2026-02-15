@@ -1,21 +1,19 @@
 import { getDb } from '@/lib/db';
 import { states, stateMonthly } from '@/lib/db/schema';
-import { desc, sql, inArray } from 'drizzle-orm';
+import { desc, inArray } from 'drizzle-orm';
 import StateExplorer from './StateExplorer';
+import { VALID_STATE_CODES } from '@/lib/us-states';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 3600;
 
 export default async function StatesPage() {
   const db = getDb();
 
-  const [allStates, counts] = await Promise.all([
-    db.select().from(states).orderBy(desc(states.totalPaid)),
-    db
-      .select({
-        count: sql<number>`count(*)`,
-      })
-      .from(states),
-  ]);
+  const allStates = await db
+    .select()
+    .from(states)
+    .where(inArray(states.state, [...VALID_STATE_CODES]))
+    .orderBy(desc(states.totalPaid));
 
   // Get monthly data for top 5 states
   const top5 = allStates.slice(0, 5).map((s) => s.state);
@@ -31,7 +29,7 @@ export default async function StatesPage() {
   return (
     <StateExplorer
       states={allStates}
-      totalCount={counts[0]?.count ?? 0}
+      totalCount={allStates.length}
       topStateMonthly={topStateMonthly}
       top5States={top5}
     />

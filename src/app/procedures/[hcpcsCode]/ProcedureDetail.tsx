@@ -15,6 +15,8 @@ import {
   formatIndex,
   formatRate,
 } from '@/lib/formatters';
+import DataQualityBanner from '@/components/DataQualityBanner';
+import InfoTip from '@/components/InfoTip';
 import type { ProcedureSummary, ProcedureMonthly, ProviderProcedure, StateProcedure } from '@/types';
 
 interface Props {
@@ -104,7 +106,7 @@ export default function ProcedureDetail({
     },
     {
       key: 'costIndex',
-      label: 'Cost Index',
+      label: <><span>Cost Index</span><InfoTip text="Provider's cost per claim divided by the procedure median. 1.0x = at median, 2.0x = twice the median." /></>,
       render: (r) => {
         const ci = r.costIndex ?? 0;
         const color = ci > 2 ? 'text-red-600' : ci < 0.5 ? 'text-blue-600' : 'text-gray-900';
@@ -197,6 +199,8 @@ export default function ProcedureDetail({
       </header>
 
       <PageNav activeTab="procedures" />
+
+      <DataQualityBanner />
 
       <div className="mb-4">
         <Link href="/procedures" className="text-xs text-blue-600 hover:underline">

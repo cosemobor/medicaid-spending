@@ -14,6 +14,7 @@ import {
   formatRate,
 } from '@/lib/formatters';
 import { HCPCS_CATEGORY_COLORS, HCPCS_CATEGORY_ORDER } from '@/lib/hcpcs-categories';
+import DataQualityBanner from '@/components/DataQualityBanner';
 import type { ProcedureSummary } from '@/types';
 
 interface Props {
@@ -153,6 +154,8 @@ export default function ProcedureExplorer({
       </header>
 
       <PageNav activeTab="procedures" />
+
+      <DataQualityBanner />
 
       {/* Stat Cards */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">

@@ -6,7 +6,7 @@ import SortableHeader from './SortableHeader';
 
 export interface ColumnDef<T> {
   key: string;
-  label: string;
+  label: React.ReactNode;
   render: (row: T, index: number) => React.ReactNode;
   sortValue?: (row: T) => number | string | null;
   className?: string;
@@ -82,11 +82,11 @@ export default function RankedTable<T>({
 
   return (
     <div>
-      <div className="overflow-x-auto rounded-lg border border-gray-100">
-        <table className="w-full text-left">
+      <div className="-mx-4 overflow-x-auto sm:mx-0 sm:rounded-lg sm:border sm:border-gray-100">
+        <table className="w-full min-w-[600px] text-left">
           <thead className="border-b border-gray-100 bg-gray-50/50">
             <tr>
-              <th className="px-3 py-2.5 text-right text-xs font-semibold text-gray-500 w-10">#</th>
+              <th className="px-2 py-2 text-right text-xs font-semibold text-gray-500 w-8 sm:px-3 sm:py-2.5 sm:w-10">#</th>
               {columns.map((col) => (
                 col.sortValue ? (
                   <SortableHeader
@@ -99,7 +99,7 @@ export default function RankedTable<T>({
                     className={col.headerClassName ?? ''}
                   />
                 ) : (
-                  <th key={col.key} className={`px-3 py-2.5 text-xs font-semibold text-gray-500 ${col.headerClassName ?? ''}`}>
+                  <th key={col.key} className={`px-2 py-2 text-xs font-semibold text-gray-500 sm:px-3 sm:py-2.5 ${col.headerClassName ?? ''}`}>
                     {col.label}
                   </th>
                 )
@@ -121,11 +121,11 @@ export default function RankedTable<T>({
                       : onRowClick ? 'hover:bg-gray-50' : ''
                   }`}
                 >
-                  <td className="px-3 py-2.5 text-right text-xs tabular-nums text-gray-500 w-10">
+                  <td className="px-2 py-2 text-right text-xs tabular-nums text-gray-500 w-8 sm:px-3 sm:py-2.5 sm:w-10">
                     {(currentPage - 1) * pageSize + i + 1}
                   </td>
                   {columns.map((col) => (
-                    <td key={col.key} className={`px-3 py-2.5 text-sm ${col.className ?? ''}`}>
+                    <td key={col.key} className={`px-2 py-2 text-sm sm:px-3 sm:py-2.5 ${col.className ?? ''}`}>
                       {col.render(row, (currentPage - 1) * pageSize + i)}
                     </td>
                   ))}
@@ -144,7 +144,7 @@ export default function RankedTable<T>({
       </div>
 
       {totalPages > 1 && (
-        <div className="mt-3 flex items-center justify-between">
+        <div className="mt-3 flex flex-col items-center gap-2 px-2 sm:flex-row sm:justify-between sm:px-0">
           <p className="text-xs text-gray-500">
             {sorted.length.toLocaleString()} rows &middot; Page {currentPage} of {totalPages}
           </p>

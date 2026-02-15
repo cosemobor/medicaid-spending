@@ -7,6 +7,7 @@ import StatCard from '@/components/StatCard';
 import DotPlot, { type DotPlotDatum } from '@/components/DotPlot';
 import RankedTable, { type ColumnDef } from '@/components/RankedTable';
 import SearchInput from '@/components/SearchInput';
+import ProviderMapWrapper from '@/components/map/ProviderMapWrapper';
 import {
   formatCurrencyCompact,
   formatCurrency,
@@ -14,15 +15,19 @@ import {
   formatNumber,
   formatPercent,
 } from '@/lib/formatters';
+import DataQualityBanner from '@/components/DataQualityBanner';
 import type { ProviderSummary } from '@/types';
 
 interface Props {
   providers: ProviderSummary[];
   totalCount: number;
+  initialProviderNpi?: string;
+  initialView?: 'map' | 'list';
 }
 
-export default function ProviderExplorer({ providers, totalCount }: Props) {
+export default function ProviderExplorer({ providers, totalCount, initialProviderNpi, initialView = 'map' }: Props) {
   const router = useRouter();
+  const [view, setView] = useState<'map' | 'list'>(initialView);
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -145,18 +150,45 @@ export default function ProviderExplorer({ providers, totalCount }: Props) {
     },
   ];
 
+  if (view === 'map') {
+    return (
+      <div className="flex h-screen flex-col">
+        <div className="shrink-0 px-4 pt-4 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-7xl">
+            <div className="mb-2 flex items-center justify-between">
+              <h1 className="text-lg font-bold text-gray-900">
+                Medicaid Provider Spending Explorer
+              </h1>
+              <ViewToggle view={view} onChange={setView} />
+            </div>
+            <PageNav activeTab="providers" />
+            <DataQualityBanner />
+          </div>
+        </div>
+        <div className="min-h-0 flex-1">
+          <ProviderMapWrapper providers={providers} initialProviderNpi={initialProviderNpi} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
-      <header className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">
-          Medicaid Provider Spending Explorer
-        </h1>
-        <p className="mt-1 text-sm text-gray-500">
-          T-MSIS provider-level spending data, Jan 2018 – Dec 2024
-        </p>
+      <header className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">
+            Medicaid Provider Spending Explorer
+          </h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Top 10,000 providers by total spending (~61% of all Medicaid fee-for-service spending), Jan 2018 – Dec 2024
+          </p>
+        </div>
+        <ViewToggle view={view} onChange={setView} />
       </header>
 
       <PageNav activeTab="providers" />
+
+      <DataQualityBanner />
 
       {/* Stat Cards */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -242,6 +274,41 @@ export default function ProviderExplorer({ providers, totalCount }: Props) {
           onRowClick={(r) => router.push(`/providers/${r.npi}`)}
         />
       </div>
+    </div>
+  );
+}
+
+function ViewToggle({ view, onChange }: { view: 'map' | 'list'; onChange: (v: 'map' | 'list') => void }) {
+  return (
+    <div className="flex shrink-0 items-center gap-0.5 rounded-lg border border-gray-200 bg-white p-0.5">
+      <button
+        onClick={() => onChange('map')}
+        className={`rounded-md p-1.5 transition-colors ${
+          view === 'map' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-gray-600'
+        }`}
+        title="Map view"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+          <circle cx="12" cy="10" r="3" />
+        </svg>
+      </button>
+      <button
+        onClick={() => onChange('list')}
+        className={`rounded-md p-1.5 transition-colors ${
+          view === 'list' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-gray-600'
+        }`}
+        title="List view"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="8" y1="6" x2="21" y2="6" />
+          <line x1="8" y1="12" x2="21" y2="12" />
+          <line x1="8" y1="18" x2="21" y2="18" />
+          <line x1="3" y1="6" x2="3.01" y2="6" />
+          <line x1="3" y1="12" x2="3.01" y2="12" />
+          <line x1="3" y1="18" x2="3.01" y2="18" />
+        </svg>
+      </button>
     </div>
   );
 }

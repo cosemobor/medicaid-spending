@@ -4,7 +4,7 @@ import { eq, desc } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import ProviderDetail from './ProviderDetail';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 3600;
 
 interface Props {
   params: Promise<{ npi: string }>;

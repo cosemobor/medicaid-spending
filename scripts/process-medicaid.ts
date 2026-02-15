@@ -2,8 +2,8 @@
  * Process raw Medicaid provider spending CSV into pre-aggregated JSON files.
  *
  * Uses multi-pass streaming to process 227M rows within memory limits.
- * Pass 1: Lightweight totals (procedures, providers, months)
- * Pass 2: Targeted detail data for top procedures/providers
+ * Pass 1: Lightweight totals (procedures, providers, months, state-months)
+ * Pass 2: Targeted detail data for top procedures/providers + state-procedure aggregation
  *
  * Usage:
  *   NODE_OPTIONS=--max-old-space-size=6144 npx tsx scripts/process-medicaid.ts
@@ -19,6 +19,7 @@ import path from 'path';
 const CSV_PATH = path.join(__dirname, '..', 'medicaid-provider-spending.csv');
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const NPI_STATES_PATH = path.join(DATA_DIR, 'npi-states.json');
+const NPI_FULL_PATH = path.join(DATA_DIR, 'npi-lookup-full.json');
 
 if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
 
@@ -86,8 +87,9 @@ const MID_DATE = '2021-07';
 // PASS 1: Lightweight totals — procedures, providers (flat numbers), months
 // ============================================================================
 
-async function pass1() {
+async function pass1(npiStateMap: Map<string, string>) {
   console.log('\n=== PASS 1: Building totals ===');
+  console.log(`  NPI→state map: ${npiStateMap.size.toLocaleString()} entries`);
   const startTime = Date.now();
 
   // Procedure: hcpcsCode → {paid, claims, bene}
@@ -103,6 +105,12 @@ async function pass1() {
 
   // Month: month → {paid, claims, bene}
   const monthMap = new Map<string, { paid: number; claims: number; bene: number }>();
+
+  // State × Month: "state|month" → {paid, claims, bene} — aggregated from ALL rows
+  const stateMonthMap = new Map<string, { paid: number; claims: number; bene: number }>();
+
+  // State totals: state → {paid, claims, bene, npis} — aggregated from ALL rows
+  const stateMap = new Map<string, { paid: number; claims: number; bene: number; npis: Set<string> }>();
 
   let rowCount = 0;
   let isHeader = true;
@@ -154,6 +162,25 @@ async function pass1() {
     mo.paid += paid;
     mo.claims += claims;
     mo.bene += bene;
+
+    // State × Month totals (from ALL rows, using full NPI→state map)
+    const state = npiStateMap.get(npi);
+    if (state) {
+      const smKey = `${state}|${month}`;
+      let sm = stateMonthMap.get(smKey);
+      if (!sm) { sm = { paid: 0, claims: 0, bene: 0 }; stateMonthMap.set(smKey, sm); }
+      sm.paid += paid;
+      sm.claims += claims;
+      sm.bene += bene;
+
+      // State totals
+      let st = stateMap.get(state);
+      if (!st) { st = { paid: 0, claims: 0, bene: 0, npis: new Set() }; stateMap.set(state, st); }
+      st.paid += paid;
+      st.claims += claims;
+      st.bene += bene;
+      st.npis.add(npi);
+    }
   }
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
@@ -161,8 +188,13 @@ async function pass1() {
   console.log(`  Procedures: ${procMap.size.toLocaleString()}`);
   console.log(`  Providers: ${providerMap.size.toLocaleString()}`);
   console.log(`  Months: ${monthMap.size}`);
+  console.log(`  State-months: ${stateMonthMap.size.toLocaleString()}`);
+  console.log(`  States: ${stateMap.size}`);
+  const stateSpending = Array.from(stateMap.values()).reduce((s, v) => s + v.paid, 0);
+  const totalSpending = Array.from(monthMap.values()).reduce((s, v) => s + v.paid, 0);
+  console.log(`  State coverage: $${(stateSpending / 1e9).toFixed(1)}B / $${(totalSpending / 1e9).toFixed(1)}B (${((stateSpending / totalSpending) * 100).toFixed(1)}%)`);
 
-  return { procMap, providerMap, monthMap, rowCount };
+  return { procMap, providerMap, monthMap, stateMonthMap, stateMap, rowCount };
 }
 
 // ============================================================================
@@ -173,9 +205,12 @@ async function pass2(
   topProcCodes: Set<string>,
   topProviderNpis: Set<string>,
   top1000Npis: Set<string>,
+  npiStateMap: Map<string, string>,
+  top500ProcCodes: Set<string>,
 ) {
   console.log('\n=== PASS 2: Building detail data ===');
   console.log(`  Tracking ${topProcCodes.size} procedures, ${topProviderNpis.size} providers, ${top1000Npis.size} for monthly`);
+  console.log(`  State-procedure aggregation for top ${top500ProcCodes.size} procedures`);
   const startTime = Date.now();
 
   // Procedure × Month (for top procedures only)
@@ -195,6 +230,9 @@ async function pass2(
 
   // Cost per claim samples for median (per procedure, for top procedures)
   const procCpcSamples = new Map<string, number[]>();
+
+  // State × Procedure (for top 500 procedures, from ALL rows)
+  const stateProcMap = new Map<string, { paid: number; claims: number; bene: number; npis: Set<string> }>();
 
   let rowCount = 0;
   let isHeader = true;
@@ -222,8 +260,23 @@ async function pass2(
     const isTopProc = topProcCodes.has(hcpcs);
     const isTopProvider = topProviderNpis.has(npi);
     const isTop1000 = top1000Npis.has(npi);
+    const isTop500Proc = top500ProcCodes.has(hcpcs);
 
-    // Skip rows that don't match any target
+    // State × Procedure aggregation (for ALL rows, top 500 procedures)
+    if (isTop500Proc) {
+      const state = npiStateMap.get(npi);
+      if (state) {
+        const spKey = `${state}|${hcpcs}`;
+        let sp = stateProcMap.get(spKey);
+        if (!sp) { sp = { paid: 0, claims: 0, bene: 0, npis: new Set() }; stateProcMap.set(spKey, sp); }
+        sp.paid += paid;
+        sp.claims += claims;
+        sp.bene += bene;
+        sp.npis.add(npi);
+      }
+    }
+
+    // Skip rows that don't match any target (for non-state aggregations)
     if (!isTopProc && !isTopProvider && !isTop1000) continue;
 
     // Procedure × Month (top 100 procedures)
@@ -303,8 +356,9 @@ async function pass2(
   console.log(`  ProcMonth entries: ${procMonthMap.size.toLocaleString()}`);
   console.log(`  ProvProc entries: ${provProcMap.size.toLocaleString()}`);
   console.log(`  ProvMonthly entries: ${provMonthMap.size.toLocaleString()}`);
+  console.log(`  StateProc entries: ${stateProcMap.size.toLocaleString()}`);
 
-  return { procMonthMap, provProcMap, provMonthMap, provTopProc, provProcSets, procCpcSamples };
+  return { procMonthMap, provProcMap, provMonthMap, provTopProc, provProcSets, procCpcSamples, stateProcMap };
 }
 
 // ============================================================================
@@ -314,18 +368,29 @@ async function pass2(
 async function main() {
   console.log('Starting multi-pass processing of medicaid-provider-spending.csv...');
 
-  // Load NPI → state mapping if available
+  // Load NPI → state mapping (prefer full NPPES extract, fallback to API lookups)
   let npiStateMap = new Map<string, string>();
-  if (existsSync(NPI_STATES_PATH)) {
+  let npiNameMap = new Map<string, string>();
+  if (existsSync(NPI_FULL_PATH)) {
+    const data: Record<string, { state: string; name: string }> = JSON.parse(readFileSync(NPI_FULL_PATH, 'utf-8'));
+    for (const [npi, info] of Object.entries(data)) {
+      if (info.state) npiStateMap.set(npi, info.state);
+      if (info.name) npiNameMap.set(npi, info.name);
+    }
+    console.log(`  Loaded full NPI mappings: ${npiStateMap.size.toLocaleString()} states, ${npiNameMap.size.toLocaleString()} names`);
+  } else if (existsSync(NPI_STATES_PATH)) {
     const data = JSON.parse(readFileSync(NPI_STATES_PATH, 'utf-8'));
-    npiStateMap = new Map(data.filter((r: any) => r.state).map((r: any) => [r.npi, r.state]));
-    console.log(`  Loaded ${npiStateMap.size.toLocaleString()} NPI → state mappings`);
+    for (const entry of data as any[]) {
+      if (entry.npi && entry.state) npiStateMap.set(entry.npi, entry.state);
+      if (entry.npi && entry.name) npiNameMap.set(entry.npi, entry.name);
+    }
+    console.log(`  Loaded ${npiStateMap.size.toLocaleString()} NPI → state mappings (from API lookups)`);
   } else {
-    console.log('  No NPI state mapping found. State analysis will be limited.');
+    console.log('  No NPI mapping found. State analysis will be limited.');
   }
 
   // === PASS 1 ===
-  const { procMap, providerMap, monthMap } = await pass1();
+  const { procMap, providerMap, monthMap, stateMonthMap, stateMap } = await pass1(npiStateMap);
 
   // === Output: Monthly National ===
   console.log('\nBuilding output files...');
@@ -354,6 +419,7 @@ async function main() {
 
   // Identify top sets for pass 2
   const top200ProcCodes = new Set(procsSorted.slice(0, 200).map(([code]) => code));
+  const top500ProcCodes = new Set(procsSorted.slice(0, 500).map(([code]) => code));
   const top10KProvNpis = new Set(provsSorted.slice(0, 10000).map(([npi]) => npi));
   const top1000Npis = new Set(provsSorted.slice(0, 1000).map(([npi]) => npi));
 
@@ -364,8 +430,8 @@ async function main() {
   monthMap.clear();
 
   // === PASS 2 ===
-  const { procMonthMap, provProcMap, provMonthMap, provTopProc, provProcSets, procCpcSamples } =
-    await pass2(top200ProcCodes, top10KProvNpis, top1000Npis);
+  const { procMonthMap, provProcMap, provMonthMap, provTopProc, provProcSets, procCpcSamples, stateProcMap } =
+    await pass2(top200ProcCodes, top10KProvNpis, top1000Npis, npiStateMap, top500ProcCodes);
 
   // === Build remaining output files ===
 
@@ -541,31 +607,18 @@ async function main() {
   writeJson('outliers.json', outliers.slice(0, 5000));
   provProcMap.clear();
 
-  // 8. State Summary (using NPI state mapping)
-  if (npiStateMap.size > 0) {
-    console.log('\n8. Computing state summaries...');
-    const stateMap = new Map<string, { paid: number; claims: number; bene: number; providers: Set<string>; procedures: Set<string> }>();
+  // 8. State data (from pass 1 and pass 2 — aggregated from ALL 227M rows)
+  if (stateMap.size > 0) {
+    console.log('\n8. Writing state data (from ALL rows)...');
 
-    for (const ps of providerSummary) {
-      if (!ps.state) continue;
-      let s = stateMap.get(ps.state);
-      if (!s) {
-        s = { paid: 0, claims: 0, bene: 0, providers: new Set(), procedures: new Set() };
-        stateMap.set(ps.state, s);
-      }
-      s.paid += ps.totalPaid;
-      s.claims += ps.totalClaims;
-      s.bene += ps.totalBeneficiaries;
-      s.providers.add(ps.npi);
-    }
-
+    // 8a. State Summary
     const stateSummary = Array.from(stateMap.entries())
       .map(([state, s]) => ({
         state,
         totalPaid: Math.round(s.paid * 100) / 100,
         totalClaims: s.claims,
         totalBeneficiaries: s.bene,
-        providerCount: s.providers.size,
+        providerCount: s.npis.size,
         procedureCount: 0,
         avgCostPerClaim: s.claims > 0 ? Math.round((s.paid / s.claims) * 100) / 100 : 0,
         avgCostPerBeneficiary: s.bene > 0 ? Math.round((s.paid / s.bene) * 100) / 100 : 0,
@@ -573,6 +626,42 @@ async function main() {
       }))
       .sort((a, b) => b.totalPaid - a.totalPaid);
     writeJson('state-summary.json', stateSummary);
+
+    // 8b. State Monthly (from pass 1 stateMonthMap)
+    const stateMonthly = Array.from(stateMonthMap.entries())
+      .map(([key, sm]) => {
+        const [state, month] = key.split('|');
+        return {
+          state,
+          month,
+          totalPaid: Math.round(sm.paid * 100) / 100,
+          totalClaims: sm.claims,
+          totalBeneficiaries: sm.bene,
+          avgCostPerClaim: sm.claims > 0 ? Math.round((sm.paid / sm.claims) * 100) / 100 : 0,
+          avgCostPerBeneficiary: sm.bene > 0 ? Math.round((sm.paid / sm.bene) * 100) / 100 : 0,
+        };
+      })
+      .sort((a, b) => a.state.localeCompare(b.state) || a.month.localeCompare(b.month));
+    writeJson('state-monthly.json', stateMonthly);
+    stateMonthMap.clear();
+
+    // 8c. State Procedures (from pass 2 stateProcMap)
+    const stateProcedures = Array.from(stateProcMap.entries())
+      .map(([key, sp]) => {
+        const [state, hcpcsCode] = key.split('|');
+        return {
+          state,
+          hcpcsCode,
+          totalPaid: Math.round(sp.paid * 100) / 100,
+          totalClaims: sp.claims,
+          totalBeneficiaries: sp.bene,
+          avgCostPerClaim: sp.claims > 0 ? Math.round((sp.paid / sp.claims) * 100) / 100 : 0,
+          providerCount: sp.npis.size,
+        };
+      })
+      .sort((a, b) => a.state.localeCompare(b.state) || b.totalPaid - a.totalPaid);
+    writeJson('state-procedures.json', stateProcedures);
+    stateProcMap.clear();
   } else {
     console.log('\n8. Skipping state analysis (no NPI state mapping)');
   }
@@ -582,6 +671,7 @@ async function main() {
   console.log(`Procedures: ${procedureSummary.length.toLocaleString()}`);
   console.log(`Top providers saved: ${providerSummary.length.toLocaleString()}`);
   console.log(`Outliers: ${Math.min(outliers.length, 5000).toLocaleString()}`);
+  console.log(`States: ${stateMap.size}`);
 
   console.log('\n=== Top 10 Procedures by Total Spending ===');
   for (let i = 0; i < Math.min(10, procedureSummary.length); i++) {

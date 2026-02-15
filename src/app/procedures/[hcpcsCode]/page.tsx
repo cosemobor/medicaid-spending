@@ -4,7 +4,7 @@ import { eq, desc } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import ProcedureDetail from './ProcedureDetail';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 3600;
 
 interface Props {
   params: Promise<{ hcpcsCode: string }>;

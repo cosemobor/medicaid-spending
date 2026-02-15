@@ -13,6 +13,7 @@ import {
   formatNumber,
   formatIndex,
 } from '@/lib/formatters';
+import InfoTip from '@/components/InfoTip';
 import type { Outlier } from '@/types';
 
 interface Props {
@@ -133,7 +134,7 @@ export default function AnomalyExplorer({
     },
     {
       key: 'costIndex',
-      label: 'Cost Index',
+      label: <><span>Cost Index</span><InfoTip text="Provider's cost per claim divided by the procedure median. 1.0x = at median, 2.0x = twice the median." /></>,
       render: (r) => {
         const color = (r.costIndex ?? 0) > 2 ? 'text-red-600' : 'text-blue-600';
         return (
