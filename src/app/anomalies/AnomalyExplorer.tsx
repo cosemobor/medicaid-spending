@@ -238,6 +238,7 @@ export default function AnomalyExplorer({
           xFormatter={(v) => `${v.toFixed(1)}x`}
           yFormatter={(v) => formatCurrencyCompact(v)}
           categoryColors={anomalyColors}
+          xTicks={[0.1, 0.2, 0.3, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0]}
           selectedId={selectedId}
           onDotClick={(d) => setSelectedId(d.id === selectedId || !d.id ? null : d.id)}
           renderTooltip={(d) => (

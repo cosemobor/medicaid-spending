@@ -47,6 +47,8 @@ interface DotPlotProps {
   onDotClick?: (datum: DotPlotDatum) => void;
   renderTooltip?: (datum: DotPlotDatum) => React.ReactNode;
   highlightIds?: Set<string>;
+  defaultLog?: boolean;
+  xTicks?: number[];
 }
 
 export default function DotPlot({
@@ -63,6 +65,8 @@ export default function DotPlot({
   onDotClick,
   renderTooltip,
   highlightIds,
+  defaultLog = true,
+  xTicks,
 }: DotPlotProps) {
   const dotClickedRef = useRef(false);
   const dragStartPx = useRef<{ x: number; y: number } | null>(null);
@@ -76,7 +80,7 @@ export default function DotPlot({
   const isDragging = useRef(false);
 
   // Log scale state
-  const [useLog, setUseLog] = useState(true);
+  const [useLog, setUseLog] = useState(defaultLog);
 
   const isZoomed = xDomain !== null || yDomain !== null;
 
@@ -249,6 +253,7 @@ export default function DotPlot({
             tick={{ fontSize: 11, fill: '#475569' }}
             tickFormatter={xFormatter}
             label={{ value: xLabel, position: 'insideBottom', offset: -10, fontSize: 12, fill: '#475569' }}
+            {...(xTicks && !isZoomed ? { ticks: xTicks } : {})}
           />
           <YAxis
             dataKey="y"
@@ -298,7 +303,7 @@ export default function DotPlot({
           ))}
         </ScatterChart>
       </ResponsiveContainer>
-      {Object.keys(categoryColors).length > 0 && (
+      {Object.keys(categoryColors).length > 0 && Object.keys(categoryColors).length <= 15 && (
         <div className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1">
           {Object.entries(categoryColors).map(([cat, color]) => (
             groupedData[cat] && (

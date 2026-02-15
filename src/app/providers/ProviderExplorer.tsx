@@ -15,6 +15,8 @@ import {
   formatNumber,
   formatPercent,
 } from '@/lib/formatters';
+import { getStateColors } from '@/lib/state-colors';
+import { stateName } from '@/lib/us-states';
 import DataQualityBanner from '@/components/DataQualityBanner';
 import type { ProviderSummary } from '@/types';
 
@@ -30,12 +32,29 @@ export default function ProviderExplorer({ providers, totalCount, initialProvide
   const [view, setView] = useState<'map' | 'list'>(initialView);
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [stateFilter, setStateFilter] = useState('');
+
+  // Unique states sorted by provider count (descending)
+  const stateList = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const p of providers) {
+      if (p.state) counts.set(p.state, (counts.get(p.state) ?? 0) + 1);
+    }
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([s]) => s);
+  }, [providers]);
+
+  const stateColors = useMemo(() => getStateColors(stateList), [stateList]);
 
   const filtered = useMemo(() => {
     if (!search) return providers;
     const q = search.toLowerCase();
     return providers.filter((p) => p.npi.includes(q) || (p.name?.toLowerCase().includes(q) ?? false));
   }, [providers, search]);
+
+  const highlightIds = useMemo(() => {
+    if (!stateFilter) return undefined;
+    return new Set(filtered.filter((p) => p.state === stateFilter).map((p) => p.npi));
+  }, [filtered, stateFilter]);
 
   const dotData: DotPlotDatum[] = useMemo(() => {
     return filtered.map((p) => ({
@@ -45,14 +64,7 @@ export default function ProviderExplorer({ providers, totalCount, initialProvide
       id: p.npi,
       providerName: p.name,
       npi: p.npi,
-      category:
-        (p.spendingGrowthPct ?? 0) > 20
-          ? 'High Growth (>20%)'
-          : (p.spendingGrowthPct ?? 0) > 0
-          ? 'Moderate Growth'
-          : (p.spendingGrowthPct ?? 0) > -20
-          ? 'Moderate Decline'
-          : 'Sharp Decline (<-20%)',
+      category: p.state ?? 'Unknown',
       state: p.state,
       totalClaims: p.totalClaims,
       totalBeneficiaries: p.totalBeneficiaries,
@@ -62,13 +74,6 @@ export default function ProviderExplorer({ providers, totalCount, initialProvide
       topProcedure: p.topProcedure,
     }));
   }, [filtered]);
-
-  const growthColors: Record<string, string> = {
-    'High Growth (>20%)': '#dc2626',
-    'Moderate Growth': '#f97316',
-    'Moderate Decline': '#22c55e',
-    'Sharp Decline (<-20%)': '#059669',
-  };
 
   const columns: ColumnDef<ProviderSummary>[] = [
     {
@@ -216,13 +221,26 @@ export default function ProviderExplorer({ providers, totalCount, initialProvide
         />
       </div>
 
-      {/* Search */}
-      <div className="mt-6">
+      {/* Search & Filters */}
+      <div className="mt-6 flex flex-wrap items-center gap-3">
         <SearchInput
           value={search}
           onChange={setSearch}
           placeholder="Search NPI or name..."
         />
+        <label className="flex items-center gap-2 text-xs text-gray-500">
+          State:
+          <select
+            value={stateFilter}
+            onChange={(e) => setStateFilter(e.target.value)}
+            className="rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-900 outline-none focus:border-blue-500"
+          >
+            <option value="">All States</option>
+            {stateList.map((s) => (
+              <option key={s} value={s}>{stateName(s)}</option>
+            ))}
+          </select>
+        </label>
       </div>
 
       {/* Dot Plot */}
@@ -232,10 +250,12 @@ export default function ProviderExplorer({ providers, totalCount, initialProvide
           xLabel="Avg $/Claim"
           yLabel="Total Paid ($)"
           title="Provider Cost per Claim vs Total Spending"
-          subtitle="Each dot is a provider. Color = spending growth trend direction."
+          subtitle={stateFilter ? `Highlighting ${stateName(stateFilter)} providers. Color = state.` : 'Each dot is a provider. Color = state.'}
           xFormatter={(v) => formatCurrencyCompact(v)}
           yFormatter={(v) => formatCurrencyCompact(v)}
-          categoryColors={growthColors}
+          xTicks={[10, 25, 50, 100, 250, 500, 1000, 5000]}
+          categoryColors={stateColors}
+          highlightIds={highlightIds}
           selectedId={selectedId}
           onDotClick={(d) => {
             if (d.id === selectedId || !d.id) {
@@ -280,27 +300,30 @@ export default function ProviderExplorer({ providers, totalCount, initialProvide
 
 function ViewToggle({ view, onChange }: { view: 'map' | 'list'; onChange: (v: 'map' | 'list') => void }) {
   return (
-    <div className="flex shrink-0 items-center gap-0.5 rounded-lg border border-gray-200 bg-white p-0.5">
+    <div className="flex shrink-0 items-center rounded-lg border border-gray-200 bg-gray-50 p-0.5">
       <button
         onClick={() => onChange('map')}
-        className={`rounded-md p-1.5 transition-colors ${
-          view === 'map' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-gray-600'
+        className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
+          view === 'map'
+            ? 'bg-white text-gray-900 shadow-sm'
+            : 'text-gray-500 hover:text-gray-700'
         }`}
-        title="Map view"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
           <circle cx="12" cy="10" r="3" />
         </svg>
+        Map
       </button>
       <button
         onClick={() => onChange('list')}
-        className={`rounded-md p-1.5 transition-colors ${
-          view === 'list' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-gray-600'
+        className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
+          view === 'list'
+            ? 'bg-white text-gray-900 shadow-sm'
+            : 'text-gray-500 hover:text-gray-700'
         }`}
-        title="List view"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <line x1="8" y1="6" x2="21" y2="6" />
           <line x1="8" y1="12" x2="21" y2="12" />
           <line x1="8" y1="18" x2="21" y2="18" />
@@ -308,6 +331,7 @@ function ViewToggle({ view, onChange }: { view: 'map' | 'list'; onChange: (v: 'm
           <line x1="3" y1="12" x2="3.01" y2="12" />
           <line x1="3" y1="18" x2="3.01" y2="18" />
         </svg>
+        List
       </button>
     </div>
   );

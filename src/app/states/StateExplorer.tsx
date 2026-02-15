@@ -198,6 +198,7 @@ export default function StateExplorer({
           subtitle="Each dot is a state. X = average cost per beneficiary. Y = total spending."
           xFormatter={(v) => formatCurrencyCompact(v)}
           yFormatter={(v) => formatCurrencyCompact(v)}
+          defaultLog={false}
           selectedId={selectedId}
           onDotClick={(d) => {
             if (d.id === selectedId || !d.id) {
